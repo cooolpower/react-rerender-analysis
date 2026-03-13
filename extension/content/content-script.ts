@@ -60,13 +60,15 @@ setInterval(flushBuffer, BATCH_INTERVAL_MS);
  * 초기화 및 스크립트 주입
  */
 async function init() {
+  console.log("[ReactPerf] Content script loaded, checking configuration...");
   const data = (await chrome.storage.local.get(["apiKey"])) as StorageData;
   
-  // API Key가 설정된 경우에만 분석 스크립트 주입
   if (data.apiKey) {
-    console.log("[ReactPerf] Initializing detectors...");
+    console.log("[ReactPerf] API Key found. Initializing detectors...");
     injectScript("react-render-detector.js");
     injectScript("network-interceptor.js");
+  } else {
+    console.warn("[ReactPerf] No API Key found. Detectors will not be injected. Please set your API Key in the extension popup.");
   }
 }
 

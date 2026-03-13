@@ -7,24 +7,19 @@ datasource db {
 }
 
 model User {
-  id           String         @id @default(uuid())
-  email        String         @unique
-  passwordHash String         @map("password_hash")
-  plan         Plan           @default(FREE)
-  role         Role           @default(USER)
-  apiKey       String         @unique @default(uuid()) @map("api_key")
-  createdAt    DateTime       @default(now()) @map("created_at")
-  updatedAt    DateTime       @updatedAt @map("updated_at")
+  id           String        @id @default(uuid())
+  email        String        @unique
+  passwordHash String        @map("password_hash")
+  plan         Plan          @default(FREE)
+  apiKey       String        @unique @default(uuid()) @map("api_key")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+  role         Role          @default(USER)
   sessions     Session[]
   subscription Subscription?
 
   @@index([email])
   @@map("users")
-}
-
-enum Role {
-  ADMIN
-  USER
 }
 
 model Session {
@@ -34,9 +29,9 @@ model Session {
   userAgent        String            @map("user_agent")
   startedAt        DateTime          @default(now()) @map("started_at")
   endedAt          DateTime?         @map("ended_at")
-  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  componentMetrics ComponentMetric[]
   apiMetrics       ApiMetric[]
+  componentMetrics ComponentMetric[]
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("sessions")
@@ -82,6 +77,11 @@ model Subscription {
   user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("subscriptions")
+}
+
+enum Role {
+  ADMIN
+  USER
 }
 
 enum Plan {

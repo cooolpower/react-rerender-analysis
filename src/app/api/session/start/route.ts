@@ -1,6 +1,10 @@
-import { validateApiKey, unauthorizedResponse, successResponse, errorResponse } from "@/lib/apiHelpers";
+import { validateApiKey, unauthorizedResponse, successResponse, errorResponse, optionsResponse } from "@/lib/apiHelpers";
 import { createSession } from "@/services/sessionService";
 import type { SessionStartPayload, SessionStartResponse } from "@/types/metrics";
+
+export async function OPTIONS() {
+  return optionsResponse();
+}
 
 export async function POST(request: Request): Promise<Response> {
   const user = await validateApiKey(request);

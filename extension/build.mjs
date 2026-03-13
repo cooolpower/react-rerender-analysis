@@ -11,26 +11,29 @@ const sharedOpts = {
 await Promise.all([
   esbuild.build({
     ...sharedOpts,
-    entryPoints: ["background/background.ts"],
+    entryPoints: { "background/background": "background/background.ts" },
   }),
   esbuild.build({
     ...sharedOpts,
-    entryPoints: ["content/content-script.ts"],
+    entryPoints: { "content/content-script": "content/content-script.ts" },
     format: "iife",
   }),
   esbuild.build({
     ...sharedOpts,
-    entryPoints: [
-      "detector/react-render-detector.ts",
-      "detector/network-interceptor.ts"
-    ],
+    entryPoints: {
+      "react-render-detector": "detector/react-render-detector.ts",
+      "network-interceptor": "detector/network-interceptor.ts"
+    },
     format: "iife",
   }),
   esbuild.build({
     ...sharedOpts,
-    entryPoints: ["panel/panel.ts", "panel/popup.ts"],
+    entryPoints: {
+      "panel/panel": "panel/panel.ts",
+      "panel/popup": "panel/popup.ts"
+    },
     format: "iife",
-    outdir: "dist/panel",
+    outdir: "dist",
   }),
 ]);
 

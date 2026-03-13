@@ -1,8 +1,12 @@
-import { validateApiKey, unauthorizedResponse, successResponse, errorResponse } from "@/lib/apiHelpers";
+import { validateApiKey, unauthorizedResponse, successResponse, errorResponse, optionsResponse } from "@/lib/apiHelpers";
 import { saveMetricsBatch } from "@/services/sessionService";
 import type { MetricsBatchPayload } from "@/types/metrics";
 
 const MAX_EVENTS_PER_BATCH = 50;
+
+export async function OPTIONS() {
+  return optionsResponse();
+}
 
 export async function POST(request: Request): Promise<Response> {
   const user = await validateApiKey(request);
@@ -21,6 +25,11 @@ export async function POST(request: Request): Promise<Response> {
     return errorResponse("TOO_MANY_EVENTS");
   }
 
-  await saveMetricsBatch(body);
-  return successResponse(null);
+  try {
+    await saveMetricsBatch(body);
+    return successResponse(null);
+  } catch (err: any) {
+    console.error("[API] Error saving metrics batch:", err);
+    return errorResponse(err.message || "INTERNAL_ERROR", 500);
+  }
 }

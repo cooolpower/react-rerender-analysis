@@ -67,14 +67,16 @@ export async function saveMetricsBatch(
       })),
     }),
     prisma.apiMetric.createMany({
-      data: apiEvents.map((e) => ({
-        sessionId: payload.sessionId,
-        endpoint: e.endpoint,
-        method: e.method,
-        statusCode: e.statusCode,
-        latencyMs: e.latency,
-        responseSize: e.responseSize,
-      })),
+      data: apiEvents
+        .filter((e) => e.endpoint && e.method) // 필수 필드 확인
+        .map((e) => ({
+          sessionId: payload.sessionId,
+          endpoint: String(e.endpoint),
+          method: String(e.method),
+          statusCode: e.statusCode || 0,
+          latencyMs: e.latency || 0,
+          responseSize: e.responseSize || 0,
+        })),
     }),
   ]);
 }
