@@ -2,12 +2,16 @@ import { auth } from "@/lib/next-auth";
 import { redirect, notFound } from "next/navigation";
 import { getSessionDetail } from "@/services/sessionService";
 import type { Metadata } from "next";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 interface SessionPageProps {
   params: Promise<{ id: string }>;
 }
 
 export const metadata: Metadata = { title: "Session Detail | ReactPerf" };
+
+import { RealtimeDashboard } from "../../realtime-dashboard";
 
 export default async function SessionDetailPage({
   params,
@@ -17,84 +21,95 @@ export default async function SessionDetailPage({
 
   const { id } = await params;
   const data = await getSessionDetail(id, session.user.id);
-  if (!data) notFound();
+  if (!data) {
+    console.error(
+      `[ReactPerf] Session not found. ID: ${id}, UserID: ${session.user.id}`,
+    );
+    notFound();
+  }
 
   return (
-    <div style={{ padding: "32px" }}>
-      {/* Header */}
-      <div style={{ marginBottom: "28px" }}>
-        <a
-          href="/dashboard"
-          style={{
-            color: "var(--muted)",
-            fontSize: "12px",
-            marginBottom: "8px",
-            display: "inline-block",
-          }}
+    <RealtimeDashboard>
+      <div style={{ padding: "32px" }}>
+        {/* Header */}
+        <div style={{ marginBottom: "28px" }}>
+          <a
+            href="/dashboard"
+            style={{
+              color: "var(--muted)",
+              fontSize: "12px",
+              marginBottom: "8px",
+              display: "inline-block",
+            }}
+          >
+            ← Back to sessions
+          </a>
+          <h1
+            style={{ fontSize: "18px", fontWeight: "700", marginBottom: "4px" }}
+          >
+            Session Detail
+          </h1>
+          <p
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: "12px",
+              color: "var(--muted)",
+            }}
+          >
+            {data.url} · {new Date(data.startedAt).toLocaleString()}
+          </p>
+        </div>
+
+        {/* React Render Heatmap */}
+        <Section
+          title="React Render Heatmap"
+          subtitle="Components sorted by render count"
         >
-          ← Back to sessions
-        </a>
-        <h1
-          style={{ fontSize: "18px", fontWeight: "700", marginBottom: "4px" }}
+          {data.componentMetrics.length === 0 ? (
+            <EmptyMetric label="No component render data" />
+          ) : (
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "4px" }}
+            >
+              {data.componentMetrics.map((m: any) => (
+                <HeatmapRow
+                  key={m.id}
+                  name={m.componentName}
+                  renderCount={m.renderCount}
+                  avgTime={m.averageRenderTime}
+                  maxTime={m.maxRenderTime}
+                />
+              ))}
+            </div>
+          )}
+        </Section>
+
+        {/* API Waterfall */}
+        <Section
+          title="API Request Waterfall"
+          subtitle="API calls sorted by latency"
         >
-          Session Detail
-        </h1>
-        <p
-          style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: "12px",
-            color: "var(--muted)",
-          }}
-        >
-          {data.url} · {new Date(data.startedAt).toLocaleString()}
-        </p>
+          {data.apiMetrics.length === 0 ? (
+            <EmptyMetric label="No API request data" />
+          ) : (
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "4px" }}
+            >
+              {data.apiMetrics.map((m: any) => (
+                <WaterfallRow
+                  key={m.id}
+                  endpoint={m.endpoint}
+                  method={m.method}
+                  statusCode={m.statusCode}
+                  latencyMs={m.latencyMs}
+                  responseSize={m.responseSize}
+                />
+              ))}
+            </div>
+          )}
+        </Section>
       </div>
-
-      {/* React Render Heatmap */}
-      <Section
-        title="React Render Heatmap"
-        subtitle="Components sorted by render count"
-      >
-        {data.componentMetrics.length === 0 ? (
-          <EmptyMetric label="No component render data" />
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-            {data.componentMetrics.map((m: any) => (
-              <HeatmapRow
-                key={m.id}
-                name={m.componentName}
-                renderCount={m.renderCount}
-                avgTime={m.averageRenderTime}
-                maxTime={m.maxRenderTime}
-              />
-            ))}
-          </div>
-        )}
-      </Section>
-
-      {/* API Waterfall */}
-      <Section
-        title="API Request Waterfall"
-        subtitle="API calls sorted by latency"
-      >
-        {data.apiMetrics.length === 0 ? (
-          <EmptyMetric label="No API request data" />
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-            {data.apiMetrics.map((m: any) => (
-              <WaterfallRow
-                key={m.id}
-                endpoint={m.endpoint}
-                method={m.method}
-                statusCode={m.statusCode}
-                latencyMs={m.latencyMs}
-                responseSize={m.responseSize}
-              />
-            ))}
-          </div>
-        )}
-      </Section>
-    </div>
+    </RealtimeDashboard>
   );
 }
 

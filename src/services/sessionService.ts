@@ -56,19 +56,53 @@ export async function saveMetricsBatch(
       e.type === "api_request"
   );
 
-  await prisma.$transaction([
-    prisma.componentMetric.createMany({
-      data: renderEvents.map((e) => ({
-        sessionId: payload.sessionId,
-        componentName: e.componentName,
-        renderCount: 1, // 초기 렌더링 횟수. 추후 서버 사이드 집계 로직에 따라 변경 가능
-        averageRenderTime: e.renderTime,
-        maxRenderTime: e.renderTime,
-      })),
-    }),
+  // Process Render Events: Aggregate by componentName within the session
+  const renderAggregates = new Map<string, { count: number; totalTime: number; maxTime: number }>();
+  
+  for (const e of renderEvents) {
+    const existing = renderAggregates.get(e.componentName) || { count: 0, totalTime: 0, maxTime: 0 };
+    renderAggregates.set(e.componentName, {
+      count: existing.count + 1,
+      totalTime: existing.totalTime + e.renderTime,
+      maxTime: Math.max(existing.maxTime, e.renderTime),
+    });
+  }
+
+  // Update or Create Component Metrics
+  const metricPromises = Array.from(renderAggregates.entries()).map(async ([name, stats]) => {
+    const existing = await prisma.componentMetric.findFirst({
+      where: { sessionId: payload.sessionId, componentName: name },
+    });
+
+    if (existing) {
+      const newCount = existing.renderCount + stats.count;
+      const newTotalTime = (existing.averageRenderTime * existing.renderCount) + stats.totalTime;
+      return prisma.componentMetric.update({
+        where: { id: existing.id },
+        data: {
+          renderCount: newCount,
+          averageRenderTime: newTotalTime / newCount,
+          maxRenderTime: Math.max(existing.maxRenderTime, stats.maxTime),
+        },
+      });
+    } else {
+      return prisma.componentMetric.create({
+        data: {
+          sessionId: payload.sessionId,
+          componentName: name,
+          renderCount: stats.count,
+          averageRenderTime: stats.totalTime / stats.count,
+          maxRenderTime: stats.maxTime,
+        },
+      });
+    }
+  });
+
+  await Promise.all([
+    ...metricPromises,
     prisma.apiMetric.createMany({
       data: apiEvents
-        .filter((e) => e.endpoint && e.method) // 필수 필드 확인
+        .filter((e) => e.endpoint && e.method)
         .map((e) => ({
           sessionId: payload.sessionId,
           endpoint: String(e.endpoint),

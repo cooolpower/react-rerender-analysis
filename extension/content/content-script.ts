@@ -63,6 +63,18 @@ async function init() {
   console.log("[ReactPerf] Content script loaded, checking configuration...");
   const data = (await chrome.storage.local.get(["apiKey"])) as StorageData;
   
+  const currentUrl = window.location.href;
+  const backendUrl = data.backendUrl || "http://localhost:3000";
+  
+  const isDashboard = currentUrl.startsWith(backendUrl) || 
+                    currentUrl.includes("localhost:") || // Local Dev
+                    currentUrl.includes("react-rerender-analysis.vercel.app");
+
+  if (isDashboard) {
+    console.log("[ReactPerf] Dashboard page detected. Skipping detector injection.");
+    return;
+  }
+
   if (data.apiKey) {
     console.log("[ReactPerf] API Key found. Initializing detectors...");
     injectScript("react-render-detector.js");

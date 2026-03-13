@@ -6,6 +6,8 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Sessions | ReactPerf" };
 
+import { RealtimeDashboard } from "./realtime-dashboard";
+
 export default async function DashboardPage(): Promise<React.JSX.Element> {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
@@ -14,85 +16,95 @@ export default async function DashboardPage(): Promise<React.JSX.Element> {
   const sessions = await getSessionsForUser(userId);
 
   return (
-    <div style={{ padding: "32px" }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: "24px",
-        }}
-      >
-        <div>
-          <h1
-            style={{ fontSize: "20px", fontWeight: "700", marginBottom: "4px" }}
-          >
-            Performance Sessions
-          </h1>
-          <p style={{ color: "var(--muted)", fontSize: "13px" }}>
-            Captured monitoring sessions from the Chrome extension
-          </p>
-        </div>
-      </div>
-
-      {sessions.length === 0 ? (
-        <EmptyState />
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          {sessions.map((s: any) => (
-            <Link
-              key={s.id}
-              href={`/dashboard/sessions/${s.id}`}
+    <RealtimeDashboard>
+      <div style={{ padding: "32px" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: "24px",
+          }}
+        >
+          <div>
+            <h1
               style={{
-                display: "block",
-                background: "var(--surface)",
-                border: "1px solid var(--border)",
-                borderRadius: "8px",
-                padding: "16px 20px",
-                textDecoration: "none",
+                fontSize: "20px",
+                fontWeight: "700",
+                marginBottom: "4px",
               }}
             >
-              <div
+              Performance Sessions
+            </h1>
+            <p style={{ color: "var(--muted)", fontSize: "13px" }}>
+              Captured monitoring sessions from the Chrome extension
+            </p>
+          </div>
+        </div>
+
+        {sessions.length === 0 ? (
+          <EmptyState />
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {sessions.map((s: any) => (
+              <Link
+                key={s.id}
+                href={`/dashboard/sessions/${s.id}`}
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
+                  display: "block",
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "8px",
+                  padding: "16px 20px",
+                  textDecoration: "none",
                 }}
               >
-                <div>
-                  <p
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <div>
+                    <p
+                      style={{
+                        fontFamily: "var(--font-mono)",
+                        fontSize: "13px",
+                        color: "var(--foreground)",
+                        marginBottom: "4px",
+                      }}
+                    >
+                      {s.url}
+                    </p>
+                    <p style={{ color: "var(--muted)", fontSize: "12px" }}>
+                      {new Date(s.startedAt).toLocaleString()}
+                    </p>
+                  </div>
+                  <div
                     style={{
-                      fontFamily: "var(--font-mono)",
-                      fontSize: "13px",
-                      color: "var(--foreground)",
-                      marginBottom: "4px",
+                      display: "flex",
+                      gap: "12px",
+                      alignItems: "center",
                     }}
                   >
-                    {s.url}
-                  </p>
-                  <p style={{ color: "var(--muted)", fontSize: "12px" }}>
-                    {new Date(s.startedAt).toLocaleString()}
-                  </p>
+                    <Pill
+                      label={`${s._count.componentMetrics} components`}
+                      color="var(--primary)"
+                    />
+                    <Pill
+                      label={`${s._count.apiMetrics} requests`}
+                      color="var(--success)"
+                    />
+                    <StatusBadge ended={s.endedAt !== null} />
+                  </div>
                 </div>
-                <div
-                  style={{ display: "flex", gap: "12px", alignItems: "center" }}
-                >
-                  <Pill
-                    label={`${s._count.componentMetrics} components`}
-                    color="var(--primary)"
-                  />
-                  <Pill
-                    label={`${s._count.apiMetrics} requests`}
-                    color="var(--success)"
-                  />
-                  <StatusBadge ended={s.endedAt !== null} />
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
-      )}
-    </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+    </RealtimeDashboard>
   );
 }
 

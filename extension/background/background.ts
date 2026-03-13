@@ -27,6 +27,38 @@ async function ensureStorageLoaded(): Promise<void> {
   });
 }
 
+function normalizeUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    // Remove query params and hash for session matching
+    return `${parsed.origin}${parsed.pathname}`;
+  } catch {
+    return url;
+  }
+}
+
+function isDashboardUrl(url: string, backendUrl: string): boolean {
+  if (!url) return false;
+  try {
+    const target = new URL(url);
+    const backend = new URL(backendUrl);
+    
+    // Exact origin match for dashboard
+    if (target.origin === backend.origin) return true;
+    
+    // Fallback for localhost development with different ports if needed
+    if (target.hostname === "localhost" && backend.hostname === "localhost") {
+       // Optional: only block the specific dashboard app
+       // return target.port === backend.port;
+    }
+
+    return url.includes("react-rerender-analysis.vercel.app") || 
+           url.startsWith("chrome://");
+  } catch {
+    return url.startsWith("chrome://");
+  }
+}
+
 async function loadStorage(): Promise<void> {
   const data = await chrome.storage.local.get([
     "apiKey",
@@ -86,14 +118,41 @@ async function fetchWithRetry(
   }
 }
 
+const SESSION_EXPIRY_MS = 30 * 60 * 1000; // 30 minutes
+
 async function startSession(tabUrl: string): Promise<void> {
   if (!state.apiKey) {
     console.warn("[ReactPerf] Cannot start session: API Key is missing.");
     return;
   }
 
+  const normalizedTabUrl = normalizeUrl(tabUrl);
+
+  if (isDashboardUrl(tabUrl, state.backendUrl)) {
+    console.log(`[ReactPerf] Skipping session start for dashboard URL: ${tabUrl}`);
+    return;
+  }
+
+  // Check if we already have a valid session for this URL
+  const data = await chrome.storage.local.get(["sessionUrl", "sessionTimestamp", "sessionId"]) as {
+    sessionUrl?: string;
+    sessionTimestamp?: number;
+    sessionId?: string;
+  };
+
+  const isSameUrl = data.sessionUrl === normalizedTabUrl;
+  const isNotExpired = data.sessionTimestamp && (Date.now() - data.sessionTimestamp < SESSION_EXPIRY_MS);
+
+  if (data.sessionId && isSameUrl && isNotExpired) {
+    state.sessionId = data.sessionId;
+    console.log(`[ReactPerf] Reusing existing session: ${state.sessionId} for ${normalizedTabUrl}`);
+    // Update timestamp to extend session
+    await chrome.storage.local.set({ sessionTimestamp: Date.now() });
+    return;
+  }
+
   try {
-    console.log(`[ReactPerf] Attempting to start session for: ${tabUrl}`);
+    console.log(`[ReactPerf] Attempting to start NEW session for: ${tabUrl}`);
     const res = await fetch(`${state.backendUrl}/api/session/start`, {
       method: "POST",
       headers: {
@@ -111,8 +170,12 @@ async function startSession(tabUrl: string): Promise<void> {
     const json = (await res.json()) as { success: boolean; data: { sessionId: string }; error?: string };
     if (json.success) {
       state.sessionId = json.data.sessionId;
-      await chrome.storage.local.set({ sessionId: state.sessionId });
-      console.log(`[ReactPerf] Session started! ID: ${state.sessionId}`);
+      await chrome.storage.local.set({ 
+        sessionId: state.sessionId,
+        sessionUrl: normalizedTabUrl,
+        sessionTimestamp: Date.now()
+      });
+      console.log(`[ReactPerf] Session started! ID: ${state.sessionId} for ${normalizedTabUrl}`);
     } else {
       console.error(`[ReactPerf] API returned error starting session: ${json.error}`);
     }
@@ -158,7 +221,11 @@ chrome.runtime.onMessage.addListener((message: { type: string; payload: unknown 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === "complete" && tab.url?.startsWith("http")) {
     void (async () => {
-      await loadStorage(); // 확실히 하기 위해 한 번 더 로드하거나 ensure 호출
+      await loadStorage();
+      if (isDashboardUrl(tab.url!, state.backendUrl)) {
+        console.log(`[ReactPerf] Skipping tab update for dashboard URL: ${tab.url}`);
+        return;
+      }
       console.log(`[ReactPerf] Tab updated: ${tab.url}, hasApiKey: ${!!state.apiKey}`);
       if (state.apiKey) {
         void startSession(tab.url!);
@@ -170,10 +237,8 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 
 chrome.tabs.onRemoved.addListener(() => {
-  void (async () => {
-    await ensureStorageLoaded();
-    void endSession();
-  })();
+  // We don't end session immediately on tab close to allow re-opening/refreshing persistence
+  // Session will be managed by SESSION_EXPIRY_MS
 });
 
 chrome.storage.onChanged.addListener((changes) => {

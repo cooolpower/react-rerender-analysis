@@ -1,0 +1,50 @@
+# Project Rules: React Performance Devtool SaaS (프로젝트 규칙: React 성능 개발자 도구 SaaS)
+
+## 1. Project Goal & MVP Scope (프로젝트 목표 및 MVP 범위)
+
+- **Primary Goal**: Help developers quickly identify React performance issues (unnecessary re-renders, slow API calls) via visual debugging.
+  (핵심 목표: 개발자가 React 성능 문제 - 불필요한 재렌더링, 느린 API 호출 등을 시각적 디버깅을 통해 신속하게 식별하도록 지원)
+- **MVP Features (Strict)**:
+  (MVP 기능 - 엄격히 준수)
+  - React Render Heatmap (렌더링 히트맵)
+  - API Request Waterfall Visualization (API 요청 폭포수 시각화)
+  - Dashboard for session logs & performance metrics (세션 로그 및 성능 지표 대시보드)
+  - User authentication & Stripe subscription (사용자 인증 및 Stripe 구독 결제)
+- **Anti Scope-Creep**: Strictly refuse features not in MVP (e.g., AI analysis, team collaboration, memory leak detection).
+  (범위 확장 방지: MVP에 없는 기능 - AI 분석, 팀 협업, 메모리 누수 감지 등은 구현하지 않음)
+
+## 2. Technical Stack (기술 스택)
+
+- **Frontend**: Next.js (App Router), TypeScript (Strict Mode), Vanilla Extract (CSS-in-JS), shadcn UI.
+- **Backend**: Next.js Server Actions / API Routes, PostgreSQL, Prisma ORM.
+- **Infrastructure**: Vercel, Stripe.
+- **Extension**: TypeScript-based Chrome Extension (Content Script, Background, DevTools Panel).
+
+## 3. Architecture & Development (아키텍처 및 개발 가이드)
+
+- **Feature-based Architecture**: `src/features/[feature-name]` for business logic.
+  (기능 중심 아키텍처: 비즈니스 로직은 features 디렉토리에 격리)
+- **Separation of Concerns**: UI components reusable, DB logic in `services/` or `lib/db`.
+  (관심사 분리: UI 구성 요소의 재사용성 유지, 데이터베이스 로직 독립)
+- **Extension Flow**:
+  - `content-script`: Inject profiler, collect metrics. (프로파일러 주입 및 지표 수집)
+  - `background`: Manage data transmission and session. (데이터 전송 및 세션 관리)
+  - `detector`: React DevTools Hook interception. (메인 월드 훅 가로채기)
+
+## 4. Coding & Quality Standards (코딩 및 품질 표준)
+
+- **Strict TypeScript**: No `any`. Use `unknown` and type narrowing.
+  (엄격한 타입스크립트: any 사용 금지, 타입 좁히기 권장)
+- **Performance First**: Minimize re-renders, use server components where possible.
+  (성능 우선: 재렌더링 최소화, 서버 컴포넌트 적극 활용)
+- **Security**: Never collect sensitive data (cookies, auth tokens). Only performance metrics.
+  (보안: 민감 정보 수집 금지, 오직 성능 메트릭만 허용)
+- **Verification**: No console errors or TS errors. Lighthouse score > 90.
+  (검증: 콘솔/TS 에러 금지, 라이트하우스 90점 이상 유지)
+
+## 5. Agent Behavior (에이전트 행동 지침)
+
+- Prioritize speed over perfection for MVP. (완벽보다 속도 위주의 MVP 개발)
+- Avoid unnecessary abstractions. (불필요한 추상화 지양)
+- Always ask: "Does this help developers find performance problems faster?"
+  (항상 자문: "이것이 개발자가 성능 문제를 더 빨리 찾는 데 도움이 되는가?")
