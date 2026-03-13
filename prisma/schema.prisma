@@ -1,0 +1,90 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String         @id @default(uuid())
+  email        String         @unique
+  passwordHash String         @map("password_hash")
+  plan         Plan           @default(FREE)
+  role         Role           @default(USER)
+  apiKey       String         @unique @default(uuid()) @map("api_key")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+  sessions     Session[]
+  subscription Subscription?
+
+  @@index([email])
+  @@map("users")
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+model Session {
+  id               String            @id @default(uuid())
+  userId           String            @map("user_id")
+  url              String
+  userAgent        String            @map("user_agent")
+  startedAt        DateTime          @default(now()) @map("started_at")
+  endedAt          DateTime?         @map("ended_at")
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  componentMetrics ComponentMetric[]
+  apiMetrics       ApiMetric[]
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model ComponentMetric {
+  id                String   @id @default(uuid())
+  sessionId         String   @map("session_id")
+  componentName     String   @map("component_name")
+  renderCount       Int      @map("render_count")
+  averageRenderTime Float    @map("average_render_time")
+  maxRenderTime     Float    @map("max_render_time")
+  createdAt         DateTime @default(now()) @map("created_at")
+  session           Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("component_metrics")
+}
+
+model ApiMetric {
+  id           String   @id @default(uuid())
+  sessionId    String   @map("session_id")
+  endpoint     String
+  method       String
+  statusCode   Int      @map("status_code")
+  latencyMs    Int      @map("latency_ms")
+  responseSize Int      @map("response_size")
+  createdAt    DateTime @default(now()) @map("created_at")
+  session      Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("api_metrics")
+}
+
+model Subscription {
+  id                   String   @id @default(uuid())
+  userId               String   @unique @map("user_id")
+  stripeCustomerId     String   @map("stripe_customer_id")
+  stripeSubscriptionId String   @map("stripe_subscription_id")
+  plan                 Plan
+  status               String
+  currentPeriodEnd     DateTime @map("current_period_end")
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
+
+enum Plan {
+  FREE
+  PRO
+}

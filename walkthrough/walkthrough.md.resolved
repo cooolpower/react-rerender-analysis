@@ -1,0 +1,37 @@
+# Walkthrough: React Performance Devtool SaaS
+
+React 및 Next.js 애플리케이션의 성능을 실시간으로 분석하고 시각화하는 Micro SaaS 서비스의 MVP 구현을 완료했습니다.
+
+## 주요 구현 사항
+
+### 1. SaaS 인프라 및 인증 (`Week 1 & 2`)
+- **Next.js 15 (App Router)** 기반의 고성능 웹 애플리케이션 구축.
+- **Prisma 7 & PostgreSQL**을 활용한 데이터 모델링 (User, Session, Metrics).
+- **NextAuth v5**를 통한 보안 인증 및 API 키 기반 익스텐션 통신 보안 확보.
+- **Dark Mode UI**: 개발자 친화적인 다크 테마 대시보드 및 설정 페이지.
+
+### 2. Chrome Devtool 익스텐션 (`Week 3`)
+- **React Render Detection**: `REACT_DEVTOOLS_GLOBAL_HOOK`을 활용하여 리액트 컴포넌트의 렌더링 횟수와 소요 시간을 정밀하게 감지.
+- **Network Interception**: [fetch](file:///Users/james/work/react-rerender-analysis/extension/content/content-script.ts#95-132) API 인터셉트를 통해 API 요청 지연 시간(Latency) 및 응답 크기를 캡처.
+- **Efficient Batching**: 수집된 데이터를 5초 단위로 배칭하여 서버 부하 최소화 및 네트워크 효율성 극대화.
+- **Devtools Panel**: 브라우저 개발자 도구 내 전용 패널에서 실시간 성능 지표 시각화.
+
+### 3. 성능 시각화 대시보드 (`Week 4`)
+- **Render Heatmap**: 컴포넌트별 렌더링 빈도를 시각적 히트맵(Green/Yellow/Red)으로 표시하여 병목 지점을 즉시 식별.
+- **API Waterfall**: 네트워크 요청 흐름을 시각화하여 느린 API 응답을 한눈에 파악.
+- **Session History**: 과거 세션 기록을 저장하고 상세 분석 결과 제공.
+
+## 검증 결과
+- **TypeScript Strict Mode**: 전체 코드 베이스에 대해 타입 체크 완료 (`npx tsc --noEmit` 통과).
+- **Prisma Client**: Prisma 7 규격에 맞춰 클라이언트 생성 완료.
+- **Security Check**: 쿠키, 인증 토큰, 사용자 입력값 등 민감 정보 수집이 없음을 확인.
+
+## 향후 과제 (Post-MVP)
+- Stripe 실제 결제 연동 (현재 UI 수준 구현).
+- 메모리 누수 감지 기능 추가.
+- Next.js 전용 성능 최적화 권장 사항 자동 생성.
+
+---
+
+> [!NOTE]
+> 익스텐션을 테스트하려면 `extension/` 폴더에서 `npm run build`를 실행한 후, Chrome의 `chrome://extensions`에서 `dist/` 폴더를 로드하세요.

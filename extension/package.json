@@ -1,0 +1,15 @@
+{
+  "name": "react-perf-extension",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ReactPerf Chrome Devtool Extension",
+  "scripts": {
+    "build": "tsc && node build.mjs",
+    "watch": "tsc --watch"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.290",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.0.0"
+  }
+}
