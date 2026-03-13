@@ -28,7 +28,7 @@ await Promise.all([
   }),
   esbuild.build({
     ...sharedOpts,
-    entryPoints: ["panel/panel.ts"],
+    entryPoints: ["panel/panel.ts", "panel/popup.ts"],
     format: "iife",
     outdir: "dist/panel",
   }),
@@ -38,10 +38,15 @@ await Promise.all([
 import { copyFile, mkdir } from "node:fs/promises";
 
 await mkdir("dist/panel", { recursive: true });
+await mkdir("dist/icons", { recursive: true });
 await Promise.all([
   copyFile("manifest.json", "dist/manifest.json"),
   copyFile("panel/panel.html", "dist/panel/panel.html"),
+  copyFile("panel/popup.html", "dist/panel/popup.html"),
   copyFile("panel/devtools.html", "dist/panel/devtools.html"),
+  copyFile("icons/icon16.png", "dist/icons/icon16.png"),
+  copyFile("icons/icon48.png", "dist/icons/icon48.png"),
+  copyFile("icons/icon128.png", "dist/icons/icon128.png"),
 ]);
 
 console.log("✅ Extension built to /extension/dist");
