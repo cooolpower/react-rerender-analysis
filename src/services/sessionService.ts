@@ -20,10 +20,11 @@ export async function createSession(
       select: { id: true },
     });
 
-    if (sessions.length >= 5) {
-      const sessionsToDelete = sessions.slice(4); // 5번째 이후 세션들
+    if (sessions.length >= 20) {
+      const sessionsToDelete = sessions.slice(19); // 20번째 이후 세션들
       const idsToDelete = sessionsToDelete.map((s: { id: string }) => s.id);
       
+      console.log(`[ReactPerf] Deleting ${idsToDelete.length} old sessions for user ${userId}`);
       await prisma.session.deleteMany({
         where: { id: { in: idsToDelete } },
       });

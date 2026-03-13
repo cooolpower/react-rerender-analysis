@@ -4,17 +4,18 @@ const MAX_RETRIES = 3;
 const RETRY_DELAYS_MS = [1000, 2000, 5000];
 
 interface BackgroundState {
-  sessionId: string | null;
   apiKey: string | null;
   backendUrl: string;
   pendingEvents: MetricEvent[];
+  // Map normalized URL to session ID for multi-tab support
+  urlSessionMap: Record<string, string>;
 }
 
 const state: BackgroundState = {
-  sessionId: null,
   apiKey: null,
-  backendUrl: "http://localhost:3000", // Default, will be overridden by storage
+  backendUrl: "http://localhost:3000",
   pendingEvents: [],
+  urlSessionMap: {},
 };
 
 let isStorageLoaded = false;
@@ -62,19 +63,19 @@ function isDashboardUrl(url: string, backendUrl: string): boolean {
 async function loadStorage(): Promise<void> {
   const data = await chrome.storage.local.get([
     "apiKey",
-    "sessionId",
+    "urlSessionMap",
     "backendUrl",
-  ]) as StorageData;
+  ]) as StorageData & { urlSessionMap?: Record<string, string> };
 
   state.apiKey = data.apiKey ?? null;
-  state.sessionId = data.sessionId ?? null;
+  state.urlSessionMap = data.urlSessionMap ?? {};
   if (data.backendUrl) {
     state.backendUrl = data.backendUrl;
   }
   
   console.log("[ReactPerf] Storage loaded:", { 
     hasApiKey: !!state.apiKey, 
-    sessionId: state.sessionId, 
+    sessions: Object.keys(state.urlSessionMap).length, 
     backendUrl: state.backendUrl 
   });
 
@@ -120,6 +121,21 @@ async function fetchWithRetry(
 
 const SESSION_EXPIRY_MS = 30 * 60 * 1000; // 30 minutes
 
+async function injectDetector(tabId: number, url: string): Promise<void> {
+  if (isDashboardUrl(url, state.backendUrl)) return;
+  
+  try {
+    console.log(`[ReactPerf] Injecting detectors into tab ${tabId} (Main World): ${url}`);
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ["react-render-detector.js", "network-interceptor.js"],
+      world: "MAIN"
+    });
+  } catch (err) {
+    console.error(`[ReactPerf] Failed to inject detectors into tab ${tabId}:`, err);
+  }
+}
+
 async function startSession(tabUrl: string): Promise<void> {
   if (!state.apiKey) {
     console.warn("[ReactPerf] Cannot start session: API Key is missing.");
@@ -133,20 +149,20 @@ async function startSession(tabUrl: string): Promise<void> {
     return;
   }
 
-  // Check if we already have a valid session for this URL
-  const data = await chrome.storage.local.get(["sessionUrl", "sessionTimestamp", "sessionId"]) as {
-    sessionUrl?: string;
+  const isSameSession = state.urlSessionMap[normalizedTabUrl];
+  
+  // Storage fallback (for cross-reload or cross-process sync)
+  const data = await chrome.storage.local.get(["urlSessionMap", "sessionTimestamp"]) as {
+    urlSessionMap?: Record<string, string>;
     sessionTimestamp?: number;
-    sessionId?: string;
   };
 
-  const isSameUrl = data.sessionUrl === normalizedTabUrl;
+  const sessionId = isSameSession || data.urlSessionMap?.[normalizedTabUrl];
   const isNotExpired = data.sessionTimestamp && (Date.now() - data.sessionTimestamp < SESSION_EXPIRY_MS);
 
-  if (data.sessionId && isSameUrl && isNotExpired) {
-    state.sessionId = data.sessionId;
-    console.log(`[ReactPerf] Reusing existing session: ${state.sessionId} for ${normalizedTabUrl}`);
-    // Update timestamp to extend session
+  if (sessionId && isNotExpired) {
+    state.urlSessionMap[normalizedTabUrl] = sessionId;
+    console.log(`[ReactPerf] Reusing existing session: ${sessionId} for ${normalizedTabUrl}`);
     await chrome.storage.local.set({ sessionTimestamp: Date.now() });
     return;
   }
@@ -169,13 +185,14 @@ async function startSession(tabUrl: string): Promise<void> {
 
     const json = (await res.json()) as { success: boolean; data: { sessionId: string }; error?: string };
     if (json.success) {
-      state.sessionId = json.data.sessionId;
+      const newSessionId = json.data.sessionId;
+      state.urlSessionMap[normalizedTabUrl] = newSessionId;
+      
       await chrome.storage.local.set({ 
-        sessionId: state.sessionId,
-        sessionUrl: normalizedTabUrl,
+        urlSessionMap: state.urlSessionMap,
         sessionTimestamp: Date.now()
       });
-      console.log(`[ReactPerf] Session started! ID: ${state.sessionId} for ${normalizedTabUrl}`);
+      console.log(`[ReactPerf] Session started! ID: ${newSessionId} for ${normalizedTabUrl}`);
     } else {
       console.error(`[ReactPerf] API returned error starting session: ${json.error}`);
     }
@@ -184,37 +201,51 @@ async function startSession(tabUrl: string): Promise<void> {
   }
 }
 
-async function sendMetricsBatch(events: MetricEvent[]): Promise<void> {
-  if (!state.sessionId || !state.apiKey || events.length === 0) return;
+async function sendMetricsBatch(events: MetricEvent[], sessionId: string): Promise<void> {
+  if (!sessionId || !state.apiKey || events.length === 0) return;
 
   await fetchWithRetry(`${state.backendUrl}/api/metrics/batch`, {
-    sessionId: state.sessionId,
+    sessionId,
     events,
   });
 }
 
-async function endSession(): Promise<void> {
-  if (!state.sessionId || !state.apiKey) return;
+async function endSession(tabUrl: string): Promise<void> {
+  const normalized = normalizeUrl(tabUrl);
+  const sessionId = state.urlSessionMap[normalized];
+  if (!sessionId || !state.apiKey) return;
 
   await fetchWithRetry(`${state.backendUrl}/api/session/end`, {
-    sessionId: state.sessionId,
+    sessionId,
   });
 
-  state.sessionId = null;
-  await chrome.storage.local.remove("sessionId");
+  delete state.urlSessionMap[normalized];
+  await chrome.storage.local.set({ urlSessionMap: state.urlSessionMap });
 }
 
-chrome.runtime.onMessage.addListener((message: { type: string; payload: unknown }) => {
+chrome.runtime.onMessage.addListener((message: { type: string; payload: unknown }, sender) => {
   void (async () => {
     await ensureStorageLoaded();
     if (message.type === "METRIC_EVENTS") {
       const events = message.payload as MetricEvent[];
-      void sendMetricsBatch(events);
+      const url = sender.tab?.url;
+      if (url) {
+        const normalized = normalizeUrl(url);
+        const sessionId = state.urlSessionMap[normalized];
+        if (sessionId) {
+          void sendMetricsBatch(events, sessionId);
+        } else {
+          console.warn(`[ReactPerf] No session found for metrics from ${normalized}`);
+        }
+      }
     }
   })();
   
   if (message.type === "GET_SESSION_STATUS") {
-    return { sessionId: state.sessionId, apiKey: state.apiKey };
+    const url = sender.tab?.url;
+    const normalized = url ? normalizeUrl(url) : null;
+    const sessionId = normalized ? state.urlSessionMap[normalized] : null;
+    return { sessionId, apiKey: state.apiKey };
   }
 });
 
@@ -228,7 +259,8 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
       }
       console.log(`[ReactPerf] Tab updated: ${tab.url}, hasApiKey: ${!!state.apiKey}`);
       if (state.apiKey) {
-        void startSession(tab.url!);
+        await startSession(tab.url!);
+        await injectDetector(tabId, tab.url!);
       } else {
         console.warn("[ReactPerf] Tab complete but API Key is missing. Skipping session start.");
       }

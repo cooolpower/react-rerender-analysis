@@ -6,6 +6,12 @@
  */
 
 (function () {
+  if ((window as any)._reactPerfDetectorInjected) {
+    console.log("[ReactPerf] Detector already injected, skipping.");
+    return;
+  }
+  (window as any)._reactPerfDetectorInjected = true;
+
   console.log("[ReactPerf] React Render Detector injected into page.");
 
   function init() {
@@ -84,17 +90,16 @@
       const originalTransition = domNode.style.transition;
 
       // 더 눈에 띄는 스타일 적용 (Outline + BoxShadow)
-      domNode.style.outline = "2px solid #ff4444";
-      domNode.style.outlineOffset = "-2px";
-      domNode.style.boxShadow = "0 0 8px #ff4444, inset 0 0 8px #ff4444";
-      domNode.style.transition = "all 0.1s ease-in-out";
-      domNode.style.zIndex = "999999";
+      domNode.style.setProperty("outline", "2px solid #ff4444", "important");
+      domNode.style.setProperty("outline-offset", "-2px", "important");
+      domNode.style.setProperty("box-shadow", "0 0 10px #ff4444, inset 0 0 10px #ff4444", "important");
+      domNode.style.setProperty("transition", "all 0.1s ease-in-out", "important");
+      domNode.style.setProperty("z-index", "999999", "important");
 
       setTimeout(() => {
         domNode.style.outline = originalOutline;
         domNode.style.boxShadow = originalBoxShadow;
         domNode.style.transition = originalTransition;
-        // z-index는 원래대로 돌리기 힘들 수 있으므로 일단 둠 (또는 저장 후 복구)
       }, 600);
     }
 

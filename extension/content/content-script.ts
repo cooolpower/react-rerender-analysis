@@ -56,32 +56,9 @@ function flushBuffer() {
 // 주기적으로 버퍼 비우기
 setInterval(flushBuffer, BATCH_INTERVAL_MS);
 
-/**
- * 초기화 및 스크립트 주입
- */
 async function init() {
-  console.log("[ReactPerf] Content script loaded, checking configuration...");
-  const data = (await chrome.storage.local.get(["apiKey"])) as StorageData;
-  
-  const currentUrl = window.location.href;
-  const backendUrl = data.backendUrl || "http://localhost:3000";
-  
-  const isDashboard = currentUrl.startsWith(backendUrl) || 
-                    currentUrl.includes("localhost:") || // Local Dev
-                    currentUrl.includes("react-rerender-analysis.vercel.app");
-
-  if (isDashboard) {
-    console.log("[ReactPerf] Dashboard page detected. Skipping detector injection.");
-    return;
-  }
-
-  if (data.apiKey) {
-    console.log("[ReactPerf] API Key found. Initializing detectors...");
-    injectScript("react-render-detector.js");
-    injectScript("network-interceptor.js");
-  } else {
-    console.warn("[ReactPerf] No API Key found. Detectors will not be injected. Please set your API Key in the extension popup.");
-  }
+  console.log("[ReactPerf] Content script initialized, forwarding messages only.");
+  // No more manual injection here, it's handled by background script (Main World)
 }
 
 void init();
