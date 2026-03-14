@@ -32,6 +32,40 @@
   const renderCounts = new WeakMap<HTMLElement, { count: number; lastTime: number; badge?: HTMLElement }>();
   const badgeTimers = new Map<HTMLElement, any>();
   
+  // --- DOM 변경 감시 (삭제된 요소 청소기) ---
+  const cleanupObserver = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      mutation.removedNodes.forEach((node) => {
+        if (node instanceof HTMLElement) {
+          // 제거된 요소 내부의 모든 배지 대상들 찾기
+          const targets = node.querySelectorAll("[data-react-perf-id]");
+          const elementsToCheck = [node, ...Array.from(targets)];
+          
+          elementsToCheck.forEach((el) => {
+            if (el instanceof HTMLElement) {
+              const badgeId = el.getAttribute("data-react-perf-id");
+              if (badgeId) {
+                const badge = document.getElementById(`badge-${badgeId}`);
+                if (badge) {
+                  badge.remove();
+                  console.log(`[ReactPerf] Cleaned up badge for removed element: ${badgeId}`);
+                }
+              }
+            }
+          });
+        }
+      });
+    });
+  });
+  // document.body가 없을 경우를 대비해 document.documentElement를 감시하거나 body가 생길 때까지 대기
+  const startObserving = () => {
+    const target = document.body || document.documentElement;
+    if (target) {
+      cleanupObserver.observe(target, { childList: true, subtree: true });
+    }
+  };
+  startObserving();
+
   // 글로벌 스타일 태그 생성
   const styleTag = document.createElement("style");
   styleTag.id = "react-perf-global-styles";
@@ -51,12 +85,6 @@
     if (target && !document.getElementById(styleTag.id)) {
       target.appendChild(styleTag);
     }
-
-    const highlightCSS = config.showHighlight 
-      ? `outline: 2px solid var(--react-perf-color, #ff4444) !important;
-         outline-offset: -2px !important;
-         box-shadow: 0 0 10px var(--react-perf-color, #ff4444), inset 0 0 5px var(--react-perf-color, #ff4444) !important;`
-      : `outline: none !important; box-shadow: none !important;`;
 
     styleTag.innerHTML = `
       .react-perf-highlight-active {
@@ -93,7 +121,6 @@
 
   function patchRenderer(renderer: any) {
     console.log("[ReactPerf] Patching React Renderer...");
-    // 렌더러 레벨에서의 가로채기는 필요 시 추가 (현재는 hook level에서 충분)
   }
 
   function setupInterception(hook: any) {
@@ -102,12 +129,10 @@
 
     console.log("[ReactPerf] Setting up DevTools Hook interception...");
 
-    // 1. 기존에 등록된 렌더러들 처리
     if (hook.renderers) {
       hook.renderers.forEach((renderer: any) => patchRenderer(renderer));
     }
 
-    // 2. 새로운 렌더러 등록 가로채기
     const oldInject = hook.inject;
     hook.inject = function (renderer: any) {
       const id = oldInject.call(this, renderer);
@@ -115,7 +140,6 @@
       return id;
     };
 
-    // 3. 커밋 가로채기 (핵심)
     const oldOnCommitFiberRoot = hook.onCommitFiberRoot;
     hook.onCommitFiberRoot = function (rendererId: any, root: any, priorityLevel: any) {
       if (oldOnCommitFiberRoot) {
@@ -135,12 +159,9 @@
     };
   }
 
-  // Hook이 이미 존재하는 경우 (React DevTools 익스텐션이 먼저 정의한 경우)
   if (hook) {
     setupInterception(hook);
   } else {
-    // Hook이 없는 경우 스텁 생성 (React가 로드되기 전에 실행되어야 함)
-    console.log("[ReactPerf] Creating DevTools Hook stub...");
     const stub = {
       renderers: new Map(),
       supportsFiber: true,
@@ -171,34 +192,22 @@
     const componentName = getComponentName(node.type);
     
     if (componentName) {
-      // 1. 프로덕션 빌드에서는 actualDuration이 0이거나 없을 수 있음
       const renderTime = node.actualDuration || node.selfBaseDuration || 0;
-      
-      // 2. 렌더링 발생 여부 판단 (프로덕션 대응)
-      // alternate가 있다는 것은 업데이트가 발생했다는 것. 
-      // 추가로 props나 state가 변했는지 또는 lanes가 활성 상태인지 체크 (lane은 버전마다 다를 수 있어 옵셔널하게 처리)
       let wasUpdated = false;
       if (node.alternate !== null) {
         if (renderTime > 0) {
           wasUpdated = true;
         } else {
-          // 프로덕션 빌드용 heuristic: props나 state의 참조가 바뀌었는지 확인
           const propsChanged = node.memoizedProps !== node.alternate.memoizedProps;
           const stateChanged = node.memoizedState !== node.alternate.memoizedState;
-          const lanesChanged = node.lanes !== undefined && node.lanes !== 0;
-          
-          if (propsChanged || stateChanged || lanesChanged) {
+          if (propsChanged || stateChanged) {
             wasUpdated = true;
           }
         }
       }
 
       if (wasUpdated) {
-        console.log(`[ReactPerf] Render detected: ${componentName} (${renderTime.toFixed(2)}ms, flags: ${node.flags})`);
-        // 하이라이트 표시
         highlightElement(node);
-
-        // 결과 전송
         window.postMessage({
           source: "react-perf-detector",
           type: "component_render",
@@ -213,24 +222,17 @@
     if (node.sibling) traverseFiber(node.sibling);
   }
 
-  // 초기 스타일 설정
   updateGlobalStyles();
-  // 문서 로드 중 head가 생성될 때를 대비해 다시 시도
   if (!document.head) {
     window.addEventListener("DOMContentLoaded", injectStyle);
   }
 
-  // 콘텐츠 스크립트로부터 설정 변경 메시지 수신
   window.addEventListener("message", (event) => {
     if (event.data && event.data.source === "react-perf-content-script" && event.data.type === "CONFIG_UPDATE") {
       const oldBadgeMode = config.badgeMode;
       config = event.data.config;
-      console.log("[ReactPerf] Live config updated:", config);
       updateGlobalStyles();
 
-      // --- 모드 전환 시 시각적 요소 강제 업데이트 ---
-      
-      // 1. Persistent -> Timed (정리 모드)
       if (oldBadgeMode === "persistent" && config.badgeMode !== "persistent") {
         const duration = parseInt(config.badgeMode);
         document.querySelectorAll<HTMLElement>(".react-perf-badge-element, .react-perf-highlight-active").forEach(el => {
@@ -238,13 +240,9 @@
         });
       }
       
-      // 2. Timed -> Persistent (복구 모드) - 사용자님 요청 사항
       if (oldBadgeMode !== "persistent" && config.badgeMode === "persistent") {
-        // 모든 타이머 중지
         badgeTimers.forEach(t => clearTimeout(t));
         badgeTimers.clear();
-        
-        // 모든 '만료' 딱지 제거하여 즉시 화면에 복구
         document.querySelectorAll(".is-expired").forEach(el => {
           el.classList.remove("is-expired");
         });
@@ -253,10 +251,10 @@
   });
 
   function getColor(count: number): string {
-    if (count <= 2) return "#4ade80"; // Green
-    if (count <= 5) return "#facc15"; // Yellow
-    if (count <= 10) return "#fb923c"; // Orange
-    return "#f87171"; // Red
+    if (count <= 2) return "#4ade80";
+    if (count <= 5) return "#facc15";
+    if (count <= 10) return "#fb923c";
+    return "#f87171";
   }
 
   function highlightElement(node: any) {
@@ -272,38 +270,41 @@
       record.count = 1;
     }
     record.lastTime = now;
-    renderCounts.set(domNode, record);
-
     const color = getColor(record.count);
-    
-    // CSS 변수로 색상 전달 및 클래스 활성화
+
+    if (!domNode.getAttribute("data-react-perf-id")) {
+      domNode.setAttribute("data-react-perf-id", Math.random().toString(36).substr(2, 9));
+    }
+
     domNode.style.setProperty("--react-perf-color", color);
-    domNode.classList.add("react-perf-highlight-active");
-
-    // 숫자 배지 표시
-    renderBadge(domNode, record.count, color);
-
-    // 하이라이트 활성화
     domNode.classList.remove("is-expired");
     domNode.classList.add("react-perf-highlight-active");
 
-    // 계속 유지 모드일 경우 만료 클래스 추가 방지
+    renderBadge(domNode, record.count, color);
+
     if (config.badgeMode !== "persistent") {
       setTimeout(() => {
         domNode.classList.add("is-expired");
       }, 600);
     }
+    
+    renderCounts.set(domNode, record);
   }
 
   function renderBadge(target: HTMLElement, count: number, color: string) {
-    const record = renderCounts.get(target);
-    if (!record) return;
-
-    let badge = record.badge;
+    const badgeId = target.getAttribute("data-react-perf-id");
+    let badge = document.getElementById(`badge-${badgeId}`) as HTMLElement;
 
     if (badge && document.body.contains(badge)) {
       badge.innerText = count.toString();
       badge.style.backgroundColor = color;
+      
+      const rect = target.getBoundingClientRect();
+      Object.assign(badge.style, {
+        top: `${rect.top + window.scrollY - 10}px`,
+        left: `${rect.left + window.scrollX + rect.width - 10}px`
+      });
+
       if (config.badgeMode !== "persistent") {
         resetBadgeTimer(badge, parseInt(config.badgeMode));
       }
@@ -312,6 +313,7 @@
 
     const rect = target.getBoundingClientRect();
     badge = document.createElement("div");
+    badge.id = `badge-${badgeId}`;
     badge.className = "react-perf-badge-element";
     badge.innerText = count.toString();
     
@@ -332,25 +334,24 @@
     });
 
     document.body.appendChild(badge);
-    record.badge = badge;
 
     if (config.badgeMode !== "persistent") {
       resetBadgeTimer(badge, parseInt(config.badgeMode));
     }
   }
 
-  function resetBadgeTimer(badge: HTMLElement, duration: number) {
-    if (badgeTimers.has(badge)) {
-      clearTimeout(badgeTimers.get(badge));
+  function resetBadgeTimer(el: HTMLElement, duration: number) {
+    if (badgeTimers.has(el)) {
+      clearTimeout(badgeTimers.get(el));
     }
 
-    badge.classList.remove("is-expired");
+    el.classList.remove("is-expired");
 
     const timer = setTimeout(() => {
-      badge.classList.add("is-expired");
+      el.classList.add("is-expired");
     }, duration);
 
-    badgeTimers.set(badge, timer);
+    badgeTimers.set(el, timer);
   }
 
   function findFirstDOMNode(fiber: any): HTMLElement | null {
@@ -371,8 +372,6 @@
     if (!type) return null;
     if (typeof type === "string") return type;
     const name = type.displayName || type.name || null;
-    
-    // Production 빌드에서 익명 컴포넌트 처리
     if (!name && (type.$$typeof || type.render)) return "Anonymous Component";
     return name;
   }
