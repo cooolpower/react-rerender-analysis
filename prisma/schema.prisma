@@ -25,44 +25,65 @@ model User {
 model Session {
   id               String            @id @default(uuid())
   userId           String            @map("user_id")
-  url              String
+  origin           String            @default("") @map("origin") // Added to track site-wide session
   userAgent        String            @map("user_agent")
   startedAt        DateTime          @default(now()) @map("started_at")
   endedAt          DateTime?         @map("ended_at")
-  apiMetrics       ApiMetric[]
-  componentMetrics ComponentMetric[]
+  pageVisits       PageVisit[]       @relation("SessionToPageVisits")
+  apiMetrics       ApiMetric[]       // Keep for backward compatibility
+  componentMetrics ComponentMetric[] // Keep for backward compatibility
   user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("sessions")
 }
 
-model ComponentMetric {
-  id                String   @id @default(uuid())
-  sessionId         String   @map("session_id")
-  componentName     String   @map("component_name")
-  renderCount       Int      @map("render_count")
-  averageRenderTime Float    @map("average_render_time")
-  maxRenderTime     Float    @map("max_render_time")
-  createdAt         DateTime @default(now()) @map("created_at")
-  session           Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+model PageVisit {
+  id               String            @id @default(uuid())
+  sessionId        String            @map("session_id")
+  url              String
+  path             String
+  startedAt        DateTime          @default(now()) @map("started_at")
+  apiMetrics       ApiMetric[]
+  componentMetrics ComponentMetric[]
+  session          Session           @relation("SessionToPageVisits", fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId])
+  @@map("page_visits")
+}
+
+model ComponentMetric {
+  id                String     @id @default(uuid())
+  sessionId         String     @map("session_id")
+  pageVisitId       String?    @map("page_visit_id")
+  componentName     String     @map("component_name")
+  renderCount       Int        @map("render_count")
+  averageRenderTime Float      @map("average_render_time")
+  maxRenderTime     Float      @map("max_render_time")
+  createdAt         DateTime   @default(now()) @map("created_at")
+  session           Session    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  pageVisit         PageVisit? @relation(fields: [pageVisitId], references: [id], onDelete: SetNull)
+
+  @@index([sessionId])
+  @@index([pageVisitId])
   @@map("component_metrics")
 }
 
 model ApiMetric {
-  id           String   @id @default(uuid())
-  sessionId    String   @map("session_id")
+  id           String     @id @default(uuid())
+  sessionId    String     @map("session_id")
+  pageVisitId  String?    @map("page_visit_id")
   endpoint     String
   method       String
-  statusCode   Int      @map("status_code")
-  latencyMs    Int      @map("latency_ms")
-  responseSize Int      @map("response_size")
-  createdAt    DateTime @default(now()) @map("created_at")
-  session      Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  statusCode   Int        @map("status_code")
+  latencyMs    Int        @map("latency_ms")
+  responseSize Int        @map("response_size")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  session      Session    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  pageVisit    PageVisit? @relation(fields: [pageVisitId], references: [id], onDelete: SetNull)
 
   @@index([sessionId])
+  @@index([pageVisitId])
   @@map("api_metrics")
 }
 

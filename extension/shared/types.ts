@@ -19,11 +19,12 @@ export type MetricEvent = RenderMetricEvent | ApiRequestEvent;
 
 export interface MetricsBatchPayload {
   sessionId: string;
+  pageVisitId?: string;
   events: MetricEvent[];
 }
 
 export interface ExtensionMessage {
-  type: "SESSION_STARTED" | "METRIC_EVENT" | "SESSION_ENDED";
+  type: "SESSION_STARTED" | "PAGE_STARTED" | "METRIC_EVENT" | "SESSION_ENDED";
   payload: unknown;
 }
 

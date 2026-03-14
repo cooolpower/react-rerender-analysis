@@ -3,7 +3,7 @@ import type { MetricsBatchPayload, MetricEvent } from "@/types/metrics";
 
 export async function createSession(
   userId: string,
-  url: string,
+  origin: string,
   userAgent: string
 ): Promise<string> {
   // 사용자의 플랜 확인
@@ -12,7 +12,7 @@ export async function createSession(
     select: { plan: true },
   });
 
-  // FREE 플랜인 경우 데이터 보존 정책 적용 (최근 5개 세션만 유지)
+  // FREE 플랜인 경우 데이터 보존 정책 적용 (최근 20개 세션만 유지)
   if (user?.plan === "FREE") {
     const sessions = await prisma.session.findMany({
       where: { userId },
@@ -21,10 +21,9 @@ export async function createSession(
     });
 
     if (sessions.length >= 20) {
-      const sessionsToDelete = sessions.slice(19); // 20번째 이후 세션들
+      const sessionsToDelete = sessions.slice(19);
       const idsToDelete = sessionsToDelete.map((s: { id: string }) => s.id);
       
-      console.log(`[ReactPerf] Deleting ${idsToDelete.length} old sessions for user ${userId}`);
       await prisma.session.deleteMany({
         where: { id: { in: idsToDelete } },
       });
@@ -32,9 +31,27 @@ export async function createSession(
   }
 
   const session = await prisma.session.create({
-    data: { userId, url, userAgent },
+    data: { userId, origin, userAgent },
   });
   return session.id;
+}
+
+export async function trackPageVisit(
+  sessionId: string,
+  url: string
+): Promise<string> {
+  const parsedUrl = new URL(url);
+  const path = parsedUrl.pathname + parsedUrl.search;
+
+  const pageVisit = await prisma.pageVisit.create({
+    data: {
+      sessionId,
+      url,
+      path,
+    },
+  });
+
+  return pageVisit.id;
 }
 
 export async function endSession(sessionId: string): Promise<void> {
@@ -45,7 +62,7 @@ export async function endSession(sessionId: string): Promise<void> {
 }
 
 export async function saveMetricsBatch(
-  payload: MetricsBatchPayload
+  payload: MetricsBatchPayload & { pageVisitId?: string }
 ): Promise<void> {
   const renderEvents = payload.events.filter(
     (e): e is Extract<MetricEvent, { type: "component_render" }> =>
@@ -57,7 +74,7 @@ export async function saveMetricsBatch(
       e.type === "api_request"
   );
 
-  // Process Render Events: Aggregate by componentName within the session
+  // Process Render Events
   const renderAggregates = new Map<string, { count: number; totalTime: number; maxTime: number }>();
   
   for (const e of renderEvents) {
@@ -69,10 +86,13 @@ export async function saveMetricsBatch(
     });
   }
 
-  // Update or Create Component Metrics
   const metricPromises = Array.from(renderAggregates.entries()).map(async ([name, stats]) => {
     const existing = await prisma.componentMetric.findFirst({
-      where: { sessionId: payload.sessionId, componentName: name },
+      where: { 
+        sessionId: payload.sessionId, 
+        pageVisitId: payload.pageVisitId,
+        componentName: name 
+      },
     });
 
     if (existing) {
@@ -90,6 +110,7 @@ export async function saveMetricsBatch(
       return prisma.componentMetric.create({
         data: {
           sessionId: payload.sessionId,
+          pageVisitId: payload.pageVisitId,
           componentName: name,
           renderCount: stats.count,
           averageRenderTime: stats.totalTime / stats.count,
@@ -106,6 +127,7 @@ export async function saveMetricsBatch(
         .filter((e) => e.endpoint && e.method)
         .map((e) => ({
           sessionId: payload.sessionId,
+          pageVisitId: payload.pageVisitId,
           endpoint: String(e.endpoint),
           method: String(e.method),
           statusCode: e.statusCode || 0,
@@ -126,6 +148,7 @@ export async function getSessionsForUser(userId: string, limit = 50) {
         select: {
           componentMetrics: true,
           apiMetrics: true,
+          pageVisits: true,
         },
       },
     },
@@ -136,6 +159,9 @@ export async function getSessionDetail(sessionId: string, userId: string) {
   return prisma.session.findFirst({
     where: { id: sessionId, userId },
     include: {
+      pageVisits: {
+        orderBy: { startedAt: "asc" },
+      },
       componentMetrics: {
         orderBy: { renderCount: "desc" },
       },

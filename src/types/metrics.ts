@@ -21,16 +21,26 @@ export type MetricEvent = RenderMetricEvent | ApiRequestEvent;
 
 export interface MetricsBatchPayload {
   sessionId: string;
+  pageVisitId?: string;
   events: MetricEvent[];
 }
 
 export interface SessionStartPayload {
-  url: string;
+  origin: string;
   timestamp: number;
 }
 
 export interface SessionStartResponse {
   sessionId: string;
+}
+
+export interface PageVisitPayload {
+  sessionId: string;
+  url: string;
+}
+
+export interface PageVisitResponse {
+  pageVisitId: string;
 }
 
 export interface ApiResponse<T = null> {

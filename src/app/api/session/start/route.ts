@@ -17,10 +17,10 @@ export async function POST(request: Request): Promise<Response> {
     return errorResponse("INVALID_BODY");
   }
 
-  if (!body.url) return errorResponse("MISSING_URL");
-
+  if (!body.origin) return errorResponse("MISSING_ORIGIN");
+  
   const userAgent = request.headers.get("user-agent") ?? "unknown";
-  const sessionId = await createSession(user.id, body.url, userAgent);
+  const sessionId = await createSession(user.id, body.origin, userAgent);
 
   return successResponse<SessionStartResponse>({ sessionId });
 }

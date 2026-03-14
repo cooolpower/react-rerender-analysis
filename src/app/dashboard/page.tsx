@@ -75,7 +75,7 @@ export default async function DashboardPage(): Promise<React.JSX.Element> {
                         marginBottom: "4px",
                       }}
                     >
-                      {s.url}
+                      {s.origin}
                     </p>
                     <p style={{ color: "var(--muted)", fontSize: "12px" }}>
                       {new Date(s.startedAt).toLocaleString()}
@@ -88,6 +88,10 @@ export default async function DashboardPage(): Promise<React.JSX.Element> {
                       alignItems: "center",
                     }}
                   >
+                    <Pill
+                      label={`${s._count.pageVisits || 0} pages`}
+                      color="var(--warning)"
+                    />
                     <Pill
                       label={`${s._count.componentMetrics} components`}
                       color="var(--primary)"
