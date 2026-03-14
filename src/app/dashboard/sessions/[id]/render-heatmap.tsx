@@ -161,6 +161,7 @@ function HeatmapRow({
         />
       </div>
       <span
+        suppressHydrationWarning
         style={{
           fontFamily: "var(--font-mono)",
           fontSize: "12px",

@@ -77,7 +77,7 @@ export default async function DashboardPage(): Promise<React.JSX.Element> {
                     >
                       {s.origin}
                     </p>
-                    <p style={{ color: "var(--muted)", fontSize: "12px" }}>
+                    <p suppressHydrationWarning style={{ color: "var(--muted)", fontSize: "12px" }}>
                       {new Date(s.startedAt).toLocaleString()}
                     </p>
                   </div>

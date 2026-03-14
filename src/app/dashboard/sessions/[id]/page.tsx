@@ -53,6 +53,7 @@ export default async function SessionDetailPage({
             Session Detail
           </h1>
           <p
+            suppressHydrationWarning
             style={{
               fontFamily: "var(--font-mono)",
               fontSize: "12px",

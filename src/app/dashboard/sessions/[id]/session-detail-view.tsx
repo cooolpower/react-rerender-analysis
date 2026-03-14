@@ -148,7 +148,7 @@ function TabButton({
         {label}
       </span>
       {subtitle && (
-        <span style={{ fontSize: "11px", opacity: 0.7 }}>{subtitle}</span>
+        <span suppressHydrationWarning style={{ fontSize: "11px", opacity: 0.7 }}>{subtitle}</span>
       )}
     </button>
   );
