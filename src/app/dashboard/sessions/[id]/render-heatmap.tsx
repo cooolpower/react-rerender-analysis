@@ -46,28 +46,55 @@ export function RenderHeatmap({ metrics }: RenderHeatmapProps): React.JSX.Elemen
           </p>
         </div>
         
-        <label style={{ 
+        <div style={{ 
           display: "flex", 
           alignItems: "center", 
-          gap: "8px", 
-          fontSize: "12px", 
-          cursor: "pointer",
-          background: "var(--surface-alt)",
-          padding: "6px 10px",
-          borderRadius: "6px",
-          border: "1px solid var(--border)",
+          gap: "10px", 
           userSelect: "none"
         }}>
-          <input 
-            type="checkbox" 
-            checked={hideNoise}
-            onChange={(e) => setHideNoise(e.target.checked)}
-            style={{ cursor: "pointer" }}
-          />
-          <span style={{ color: hideNoise ? "var(--primary)" : "var(--muted)" }}>
+          <span 
+            onClick={() => setHideNoise(!hideNoise)}
+            style={{ 
+              fontSize: "12px", 
+              color: hideNoise ? "var(--foreground)" : "var(--muted)",
+              cursor: "pointer",
+              transition: "color 0.2s"
+            }}
+          >
             Hide Layout Noise
           </span>
-        </label>
+          <button
+            role="switch"
+            aria-checked={hideNoise}
+            onClick={() => setHideNoise(!hideNoise)}
+            style={{
+              position: "relative",
+              display: "inline-flex",
+              alignItems: "center",
+              width: "36px",
+              height: "20px",
+              borderRadius: "9999px",
+              background: hideNoise ? "var(--primary)" : "var(--surface-alt)",
+              border: hideNoise ? "1px solid var(--primary)" : "1px solid var(--border)",
+              cursor: "pointer",
+              padding: 0,
+              transition: "all 0.2s ease-in-out",
+            }}
+          >
+            <span
+              style={{
+                display: "inline-block",
+                width: "14px",
+                height: "14px",
+                background: hideNoise ? "#ffffff" : "var(--muted)",
+                borderRadius: "50%",
+                transform: hideNoise ? "translateX(18px)" : "translateX(3px)",
+                transition: "transform 0.2s ease-in-out, background 0.2s ease-in-out",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+              }}
+            />
+          </button>
+        </div>
       </div>
 
       <div style={{
