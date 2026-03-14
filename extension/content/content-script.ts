@@ -57,8 +57,44 @@ function flushBuffer() {
 setInterval(flushBuffer, BATCH_INTERVAL_MS);
 
 async function init() {
-  console.log("[ReactPerf] Content script initialized, forwarding messages only.");
-  // No more manual injection here, it's handled by background script (Main World)
+  console.log("[ReactPerf] Content script (Isolated World) loaded.");
+  
+  try {
+    // 1. 초기 설정 동기화
+    syncConfig();
+
+    // 2. 설정 변경 감시
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName === "local" && (changes.showHighlight || changes.showBadge || changes.badgeMode)) {
+        syncConfig();
+      }
+    });
+  } catch (err: unknown) {
+    // 익스텐션 컨텍스트가 무효화된 경우 (새로고침 시 등) 무시
+    if (err instanceof Error && err.message?.includes("context invalidated")) {
+      console.log("[ReactPerf] Content script context invalidated. Please refresh the page.");
+    }
+  }
+}
+
+function syncConfig() {
+  try {
+    chrome.storage.local.get(["showHighlight", "showBadge", "badgeMode"], (data) => {
+      if (chrome.runtime.lastError) return;
+      
+      window.postMessage({
+        source: "react-perf-content-script",
+        type: "CONFIG_UPDATE",
+        config: {
+          showHighlight: data.showHighlight !== false,
+          showBadge: data.showBadge !== false,
+          badgeMode: data.badgeMode || "1000"
+        }
+      }, "*");
+    });
+  } catch (e) {
+    // Context invalidated
+  }
 }
 
 void init();

@@ -34,6 +34,7 @@
         align-items: center;
         gap: 6px;
         font-size: 12px;
+        margin-bottom: 4px;
       }
       .dot {
         width: 8px;
@@ -50,13 +51,29 @@
         flex-direction: column;
         gap: 6px;
       }
+      .settings-group {
+        border-top: 1px solid #2a2a2a;
+        padding-top: 12px;
+        margin-top: 4px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .switch-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .switch-row span {
+        font-size: 13px;
+      }
       label {
         font-size: 11px;
         color: #6b7280;
         text-transform: uppercase;
         letter-spacing: 0.05em;
       }
-      input {
+      input[type="text"], input[type="password"] {
         background: #161616;
         border: 1px solid #2a2a2a;
         border-radius: 6px;
@@ -65,7 +82,16 @@
         font-size: 13px;
         outline: none;
       }
-      input:focus {
+      select {
+        background: #161616;
+        border: 1px solid #2a2a2a;
+        border-radius: 6px;
+        padding: 6px;
+        color: #e8e8e8;
+        font-size: 12px;
+        outline: none;
+      }
+      input:focus, select:focus {
         border-color: #6366f1;
       }
       button {
@@ -77,6 +103,7 @@
         font-weight: 600;
         cursor: pointer;
         transition: background 0.2s;
+        margin-top: 6px;
       }
       button:hover {
         background: #4f46e5;
@@ -115,7 +142,28 @@
         <input type="password" id="api-key" placeholder="Paste your API key here..." />
       </div>
 
-      <button id="save-btn">Save & Connect</button>
+      <div class="settings-group">
+        <label>Visual Effects</label>
+        <div class="switch-row">
+          <span>Highlight Rendering</span>
+          <input type="checkbox" id="show-highlight" checked />
+        </div>
+        <div class="switch-row">
+          <span>Show Render Count</span>
+          <input type="checkbox" id="show-badge" checked />
+        </div>
+        <div class="switch-row">
+          <span>Badge Mode</span>
+          <select id="badge-mode">
+            <option value="1000">Temporary (1s)</option>
+            <option value="3000">3 Seconds</option>
+            <option value="5000">5 Seconds</option>
+            <option value="persistent">Persistent</option>
+          </select>
+        </div>
+      </div>
+
+      <button id="save-btn">Save Changes</button>
 
       <div class="footer">
         Go to <a href="https://react-perf.io/dashboard" target="_blank">Dashboard</a> for settings

@@ -121,20 +121,7 @@ async function fetchWithRetry(
 
 const SESSION_EXPIRY_MS = 30 * 60 * 1000; // 30 minutes
 
-async function injectDetector(tabId: number, url: string): Promise<void> {
-  if (isDashboardUrl(url, state.backendUrl)) return;
-  
-  try {
-    console.log(`[ReactPerf] Injecting detectors into tab ${tabId} (Main World): ${url}`);
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      files: ["react-render-detector.js", "network-interceptor.js"],
-      world: "MAIN"
-    });
-  } catch (err) {
-    console.error(`[ReactPerf] Failed to inject detectors into tab ${tabId}:`, err);
-  }
-}
+// injectDetector는 더 이상 필요하지 않음 (manifest.json에서 자동 주입)
 
 async function startSession(tabUrl: string): Promise<void> {
   if (!state.apiKey) {
@@ -149,26 +136,8 @@ async function startSession(tabUrl: string): Promise<void> {
     return;
   }
 
-  const isSameSession = state.urlSessionMap[normalizedTabUrl];
-  
-  // Storage fallback (for cross-reload or cross-process sync)
-  const data = await chrome.storage.local.get(["urlSessionMap", "sessionTimestamp"]) as {
-    urlSessionMap?: Record<string, string>;
-    sessionTimestamp?: number;
-  };
-
-  const sessionId = isSameSession || data.urlSessionMap?.[normalizedTabUrl];
-  const isNotExpired = data.sessionTimestamp && (Date.now() - data.sessionTimestamp < SESSION_EXPIRY_MS);
-
-  if (sessionId && isNotExpired) {
-    state.urlSessionMap[normalizedTabUrl] = sessionId;
-    console.log(`[ReactPerf] Reusing existing session: ${sessionId} for ${normalizedTabUrl}`);
-    await chrome.storage.local.set({ sessionTimestamp: Date.now() });
-    return;
-  }
-
   try {
-    console.log(`[ReactPerf] Attempting to start NEW session for: ${tabUrl}`);
+    console.log(`[ReactPerf] Starting NEW session for: ${tabUrl} (Refresh detected)`);
     const res = await fetch(`${state.backendUrl}/api/session/start`, {
       method: "POST",
       headers: {
@@ -249,20 +218,31 @@ chrome.runtime.onMessage.addListener((message: { type: string; payload: unknown 
   }
 });
 
+// 페이지 로드 시작 시점에 가장 빨리 주입
+chrome.webNavigation.onCommitted.addListener((details) => {
+  if (details.frameId !== 0) return; // 메인 프레임만 우선 처리 (필요시 상세 조정)
+
+  void (async () => {
+    await loadStorage();
+    if (isDashboardUrl(details.url, state.backendUrl)) return;
+
+    if (state.apiKey) {
+      console.log(`[ReactPerf] Navigation committed: ${details.url}. Starting session.`);
+      await startSession(details.url);
+    }
+  })();
+});
+
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  // 컴플리트 시점에도 혹시 누락되었을 경우를 대비해 보조적으로 유지
   if (changeInfo.status === "complete" && tab.url?.startsWith("http")) {
     void (async () => {
       await loadStorage();
-      if (isDashboardUrl(tab.url!, state.backendUrl)) {
-        console.log(`[ReactPerf] Skipping tab update for dashboard URL: ${tab.url}`);
-        return;
-      }
-      console.log(`[ReactPerf] Tab updated: ${tab.url}, hasApiKey: ${!!state.apiKey}`);
-      if (state.apiKey) {
+      if (isDashboardUrl(tab.url!, state.backendUrl)) return;
+      
+      // 세션 시작 확인용으로만 유지 (필요 시)
+      if (state.apiKey && !state.urlSessionMap[normalizeUrl(tab.url!)]) {
         await startSession(tab.url!);
-        await injectDetector(tabId, tab.url!);
-      } else {
-        console.warn("[ReactPerf] Tab complete but API Key is missing. Skipping session start.");
       }
     })();
   }

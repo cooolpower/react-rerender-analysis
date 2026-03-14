@@ -12,6 +12,7 @@ interface SessionPageProps {
 export const metadata: Metadata = { title: "Session Detail | ReactPerf" };
 
 import { RealtimeDashboard } from "../../realtime-dashboard";
+import { RenderHeatmap } from "./render-heatmap";
 
 export default async function SessionDetailPage({
   params,
@@ -60,29 +61,8 @@ export default async function SessionDetailPage({
           </p>
         </div>
 
-        {/* React Render Heatmap */}
-        <Section
-          title="React Render Heatmap"
-          subtitle="Components sorted by render count"
-        >
-          {data.componentMetrics.length === 0 ? (
-            <EmptyMetric label="No component render data" />
-          ) : (
-            <div
-              style={{ display: "flex", flexDirection: "column", gap: "4px" }}
-            >
-              {data.componentMetrics.map((m: any) => (
-                <HeatmapRow
-                  key={m.id}
-                  name={m.componentName}
-                  renderCount={m.renderCount}
-                  avgTime={m.averageRenderTime}
-                  maxTime={m.maxRenderTime}
-                />
-              ))}
-            </div>
-          )}
-        </Section>
+        {/* React Render Heatmap - Client Component with Filter */}
+        <RenderHeatmap metrics={data.componentMetrics} />
 
         {/* API Waterfall */}
         <Section
